@@ -1,0 +1,47 @@
+package com.hospital.assist.controller;
+
+import com.hospital.assist.model.Doctor;
+import com.hospital.assist.service.DoctorService;
+import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/doctors")
+@CrossOrigin(origins = "*")
+public class DoctorController {
+    private final DoctorService service;
+    public DoctorController(DoctorService service){ this.service = service; }
+
+    @GetMapping
+    public List<Doctor> all(){ return service.findAll(); }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Doctor> get(@PathVariable Long id){
+        Doctor p = service.findById(id);
+        return p == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(p);
+    }
+
+    @PostMapping
+    public ResponseEntity<Doctor> create(@Valid @RequestBody Doctor p){
+        Doctor saved = service.save(p);
+        return ResponseEntity.ok(saved);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Doctor> update(@PathVariable Long id, @Valid @RequestBody Doctor p){
+        try {
+            return ResponseEntity.ok(service.update(id, p));
+        } catch (RuntimeException ex) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id){
+        service.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+}
