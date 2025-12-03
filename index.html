@@ -1,673 +1,2434 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Hospital Assistant</title>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Hospital Assistant</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- Icons -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css"
+    />
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Flatpickr -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <!-- Chrono (for NLP dates if you used it) -->
+    <script src="https://cdn.jsdelivr.net/npm/chrono-node/dist/chrono.min.js"></script>
+    <!-- Animate.css (optional, was used in your original) -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"
+    />
+    <!-- Chart.js for dashboard charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
-  <!-- Animate.css -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+    <!-- React + ReactDOM -->
+    <script
+      crossorigin
+      src="https://unpkg.com/react@18/umd/react.development.js"
+    ></script>
+    <script
+      crossorigin
+      src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"
+    ></script>
 
-  <style>
-    body { background: linear-gradient(135deg,#f8fafc,#eef2ff); min-height:100vh; }
-    .card-hero { border-radius: 1rem; box-shadow: 0 8px 30px rgba(2,6,23,0.08); }
-    .small-muted { font-size: 0.85rem; color: #6c757d; }
-    .chat-box { height: 320px; overflow-y: auto; background: #fff; padding: 1rem; border-radius: .5rem; border: 1px solid #e9ecef; }
-    .msg-user { text-align: right; }
-    .msg-bot { text-align: left; }
-    .badge-disease { background: linear-gradient(90deg,#7c3aed,#06b6d4); color: #fff; padding:.35rem .6rem; border-radius:.5rem; }
-    .form-error { color: #dc3545; font-size: .85rem; }
-    .loading-overlay { position: absolute; inset:0; display:flex; align-items:center; justify-content:center; background: rgba(255,255,255,0.6); border-radius:.5rem; }
-    .small-card { font-size: .9rem; }
-    .doc_panel { overflow: auto; width: fit-content; }
-    .modifyBtn { width: 75%; }
-
-    /* Stats layout */
-    .stats-row { display:flex; gap:.75rem; align-items:stretch; }
-    .stat-card {
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      justify-content:center;
-      padding:.8rem;
-      border-radius:.6rem;
-      color:#fff;
-      flex:1 1 0;
-      min-width:0; /* allow shrinking on small screens */
-      text-align:center;
-    }
-    .stat-1 { background: linear-gradient(90deg,#06b6d4,#3b82f6); }
-    .stat-2 { background: linear-gradient(90deg,#7c3aed,#a78bfa); }
-    .stat-3 { background: linear-gradient(90deg,#f97316,#fb923c); }
-
-    /* Prevent overflow and allow wrapping */
-    .list-group-item { word-break: break-word; overflow: hidden; }
-
-    /* Right column scroll area */
-    .right-column { max-height: calc(100vh - 160px); overflow-y: auto; padding-right: .25rem; }
-
-    /* Appointment controls responsive */
-    .appt-controls {
-      min-width: 0;
-      display: flex;
-      gap: .5rem;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-    .appt-controls .form-select {
-      min-width: 140px;
-      max-width: 220px;
-      flex: 1 1 auto;
-    }
-    .appt-controls .btn { white-space: nowrap; flex: 0 0 auto; }
-
-    @media (max-width: 768px) {
-      .stats-row { flex-direction: column; gap: .5rem; }
-      .appt-controls { flex-direction: column; align-items: stretch; }
-      .appt-controls .form-select { max-width: 100%; }
-      .appt-controls .btn { width: 100%; }
-    }
-  </style>
-</head>
-<body>
-  <div id="root" class="container py-5"></div>
-
-  <!-- React and ReactDOM (production UMD builds) -->
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
-  <!-- SweetAlert2 -->
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
-  <script>
-  (function(){
-    if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
-      document.getElementById('root').innerHTML =
-        '<div class="alert alert-danger">React failed to load. Check CDN URLs and network (open DevTools → Network).</div>';
-      return;
-    }
-
-    const { useState, useEffect, useRef } = React;
-    const API_BASE = 'http://localhost:8080/api';
-
-    async function fetchJson(url, opts = {}) {
-      const res = await fetch(url, {
-        headers: { 'Content-Type': 'application/json' },
-        ...opts
-      });
-      if (!res.ok) {
-        let body;
-        try { body = await res.json(); } catch(e) { body = await res.text(); }
-        const err = typeof body === 'string' ? body : JSON.stringify(body);
-        throw new Error(err || res.statusText);
+    <style>
+      body {
+        background: #f5f7fb;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
       }
-      if (res.status === 204) return null;
-      return res.json();
-    }
 
-    const api = {
-      listPatients: () => fetchJson(`${API_BASE}/patients`),
-      createPatient: (p) => fetchJson(`${API_BASE}/patients`, { method: 'POST', body: JSON.stringify(p) }),
-      updatePatient: (id, p) => fetchJson(`${API_BASE}/patients/${id}`, { method: 'PUT', body: JSON.stringify(p) }),
-      deletePatient: (id) => fetch(`${API_BASE}/patients/${id}`, { method: 'DELETE' }),
+      .navbar-brand span {
+        font-weight: 700;
+      }
 
-      listDoctors: () => fetchJson(`${API_BASE}/doctors`),
-      createDoctor: (d) => fetchJson(`${API_BASE}/doctors`, { method: 'POST', body: JSON.stringify(d) }),
-      updateDoctor: (id, d) => fetchJson(`${API_BASE}/doctors/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
-      deleteDoctor: (id) => fetch(`${API_BASE}/doctors/${id}`, { method: 'DELETE' }),
+      .card-hero {
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        color: #fff;
+        border-radius: 1rem;
+      }
 
-      listAppointments: () => fetchJson(`${API_BASE}/appointments`),
-      listAppointmentsByPatient: (pid) => fetchJson(`${API_BASE}/appointments/patient/${pid}`),
-      bookAppointment: (a) => fetchJson(`${API_BASE}/appointments`, { method: 'POST', body: JSON.stringify(a) }),
-      rescheduleAppointment: (id, payload) => fetchJson(`${API_BASE}/appointments/${id}/reschedule`, { method: 'PUT', body: JSON.stringify(payload) }),
-      cancelAppointment: (id) => fetchJson(`${API_BASE}/appointments/${id}/cancel`, { method: 'PUT' }),
+      .small-muted {
+        font-size: 0.8rem;
+        color: #6b7280;
+      }
 
-      // assign endpoint
-      assignDoctorToAppointment: (id, payload) => fetchJson(`${API_BASE}/appointments/${id}/assign`, { method: 'PUT', body: JSON.stringify(payload) }),
+      .badge-disease {
+        background: #eef2ff;
+        color: #4f46e5;
+        border-radius: 999px;
+        padding: 0.15rem 0.6rem;
+        font-size: 0.7rem;
+      }
 
-      askChat: (q) => fetchJson(`${API_BASE}/chat/ask`, { method: 'POST', body: JSON.stringify({ q }) })
-    };
+      .form-error {
+        color: #dc2626;
+        font-size: 0.75rem;
+        margin-top: 0.15rem;
+      }
 
-    const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+      .right-column {
+        position: relative;
+      }
 
-    function validatePerson({ name, years, months, email, phone, disease }) {
-      const errors = {};
-      if (!name || !name.trim()) errors.name = 'Name is required';
-      if (years === '' || years === null || isNaN(years) || Number(years) < 0) errors.years = 'Valid years required';
-      if (months === '' || months === null || isNaN(months) || Number(months) < 0 || Number(months) > 11) errors.months = 'Months must be 0-11';
-      if (!email || !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email)) errors.email = 'Valid email required';
-      if (!phone || !/^\d{10}$/.test(phone)) errors.phone = 'Phone must be 10 digits';
-      if (!disease || !disease.trim()) errors.disease = 'This field is required';
-      return errors;
-    }
+      .loading-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+      }
 
-    function validateDoctor({ name, years, months, email, phone, specialization }) {
-      const errors = {};
-      if (!name || !name.trim()) errors.name = 'Name is required';
-      if (years === '' || years === null || isNaN(years) || Number(years) < 5) errors.years = 'Valid years required';
-      if (months === '' || months === null || isNaN(months) || Number(months) < 0 || Number(months) > 11) errors.months = 'Months must be 0-11';
-      if (!email || !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email)) errors.email = 'Valid email required';
-      if (!phone || !/^\d{10}$/.test(phone)) errors.phone = 'Phone must be 10 digits';
-      if (!specialization || !specialization.trim()) errors.specialization = 'This field is required';
-      return errors;
-    }
+      .modifyBtn .btn {
+        border-radius: 999px !important;
+      }
 
-    function App(){
-      const [tab, setTab] = useState('patients');
+      /* Status chips */
+      .status-chip {
+        border-radius: 999px;
+        padding: 0.1rem 0.55rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+      }
 
-      return React.createElement('div', { className: 'row' },
-        React.createElement('div', { className: 'col-12 mb-4' },
-          React.createElement('div', { className: 'card card-hero p-4' },
-            React.createElement('div', { className: 'd-flex align-items-center justify-content-between' },
-              React.createElement('div', null,
-                React.createElement('h3', { className: 'mb-0' }, 'Hospital Assistant'),
-                React.createElement('div', { className: 'small-muted' }, 'Developed by Hritik Maniyar')
-              ),
-              React.createElement('div', null,
-                React.createElement('div', { className: 'btn-group', role: 'group' },
-                  React.createElement('button', { className: 'btn btn-outline-primary ' + (tab==='patients' ? 'active' : ''), onClick: ()=>setTab('patients') }, 'Patient'),
-                  React.createElement('button', { className: 'btn btn-outline-primary ' + (tab==='doctors' ? 'active' : ''), onClick: ()=>setTab('doctors') }, 'Doctor')
-                )
+      .status-booked {
+        background: #dbeafe;
+        color: #1d4ed8;
+      }
+
+      .status-completed {
+        background: #dcfce7;
+        color: #166534;
+      }
+
+      .status-cancelled {
+        background: #fee2e2;
+        color: #b91c1c;
+      }
+
+      /* Timeline */
+      .timeline {
+        position: relative;
+        margin-left: 1.5rem;
+        padding-left: 1rem;
+      }
+
+      .timeline::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0.3rem;
+        bottom: 0;
+        width: 2px;
+        background: #e5e7eb;
+      }
+
+      .timeline-item {
+        position: relative;
+        margin-bottom: 1rem;
+      }
+
+      .timeline-item::before {
+        content: "";
+        position: absolute;
+        left: -0.5rem;
+        top: 0.2rem;
+        width: 0.7rem;
+        height: 0.7rem;
+        border-radius: 999px;
+        background: #fff;
+        border: 3px solid #3b82f6;
+      }
+
+      .timeline-time {
+        font-size: 0.75rem;
+        color: #6b7280;
+      }
+
+      .timeline-title {
+        font-weight: 600;
+      }
+
+      .timeline-meta {
+        font-size: 0.75rem;
+        color: #4b5563;
+      }
+
+      /* Profile modal */
+      .profile-avatar {
+        width: 60px;
+        height: 60px;
+        border-radius: 999px;
+        object-fit: cover;
+      }
+
+      .history-item-title {
+        font-weight: 600;
+        font-size: 0.9rem;
+      }
+
+      .history-item-date {
+        font-size: 0.75rem;
+        color: #6b7280;
+      }
+
+      .history-item-tag {
+        font-size: 0.7rem;
+        padding: 0.1rem 0.45rem;
+        border-radius: 999px;
+        background: #eff6ff;
+        color: #1d4ed8;
+      }
+	  .chat-container {
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.chat-container::-webkit-scrollbar {
+  width: 6px;
+}
+.chat-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+.chat-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+.notifications-container {
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+.notification-item {
+  border-left: 4px solid #198754;
+}
+
+
+    </style>
+  </head>
+  <body>
+    <nav class="navbar navbar-light bg-white border-bottom mb-3">
+      <div class="container">
+	  <a class="navbar-brand d-flex flex-column align-items-start gap-2" href="#">
+		<div class="d-flex align-items-center gap-2 mb-2">
+		  <i class="bi bi-hospital fs-4 text-primary"></i>
+		  <span class="fw-bold">Hospital Assistant</span>
+		</div>
+		<span class="small text-muted">Developed by Hritik Maniyar</span>
+	  </a>
+	</div>
+    </nav>
+
+    <div class="container my-3">
+      <div id="root"></div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div
+      class="modal fade"
+      id="profileModal"
+      tabindex="-1"
+      aria-labelledby="profileModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="profileModalLabel">Profile</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div class="d-flex align-items-center mb-3">
+              <img
+                id="profileAvatar"
+                class="profile-avatar me-3"
+                src="https://via.placeholder.com/60x60.png?text=U"
+                alt="avatar"
+              />
+              <div>
+                <h5 id="profileName" class="mb-0"></h5>
+                <div id="profileRole" class="small text-muted"></div>
+                <div id="profileMeta" class="small mt-1"></div>
+              </div>
+            </div>
+
+            <div id="patientExtra" class="mb-3 d-none">
+              <h6>Patient Details</h6>
+              <div class="row small">
+                <div class="col-md-3">
+                  <span class="text-muted">Age:</span>
+                  <span id="patientAge"></span>
+                </div>
+                <div class="col-md-3">
+                  <span class="text-muted">Phone:</span>
+                  <span id="patientPhone"></span>
+                </div>
+                <div class="col-md-6">
+                  <span class="text-muted">Disease:</span>
+                  <span id="patientDisease"></span>
+                </div>
+              </div>
+            </div>
+
+            <div id="doctorExtra" class="mb-3 d-none">
+              <h6>Doctor Details</h6>
+              <div class="row small">
+                <div class="col-md-4">
+                  <span class="text-muted">Specialization:</span>
+                  <span id="doctorSpeciality"></span>
+                </div>
+                <div class="col-md-4">
+                  <span class="text-muted">Phone:</span>
+                  <span id="doctorPhone"></span>
+                </div>
+                <div class="col-md-4">
+                  <span class="text-muted">Email:</span>
+                  <span id="doctorEmail"></span>
+                </div>
+              </div>
+            </div>
+
+            <div id="medicalHistoryWrapper" class="mt-3 d-none">
+              <h6>Medical History</h6>
+              <div id="medicalHistoryList" class="list-group small"></div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              class="btn btn-secondary btn-sm"
+              data-bs-dismiss="modal"
+              type="button"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        if (typeof React === "undefined" || typeof ReactDOM === "undefined") {
+          document.getElementById("root").innerHTML =
+            '<div class="alert alert-danger">React failed to load. Check CDN URLs and network (open DevTools → Network).</div>';
+          return;
+        }
+
+        const { useState, useEffect, useRef } = React;
+        const API_BASE = "http://localhost:8080/api";
+
+        async function fetchJson(url, opts = {}) {
+          const res = await fetch(url, {
+            headers: { "Content-Type": "application/json" },
+            ...opts,
+          });
+          if (!res.ok) {
+            let body;
+            try {
+              body = await res.json();
+            } catch (e) {
+              body = await res.text();
+            }
+            const err = typeof body === "string" ? body : JSON.stringify(body);
+            throw new Error(err || res.statusText);
+          }
+          if (res.status === 204) return null;
+          return res.json();
+        }
+
+        const api = {
+          listPatients: () => fetchJson(`${API_BASE}/patients`),
+          createPatient: (p) =>
+            fetchJson(`${API_BASE}/patients`, {
+              method: "POST",
+              body: JSON.stringify(p),
+            }),
+          updatePatient: (id, p) =>
+            fetchJson(`${API_BASE}/patients/${id}`, {
+              method: "PUT",
+              body: JSON.stringify(p),
+            }),
+          deletePatient: (id) =>
+            fetch(`${API_BASE}/patients/${id}`, { method: "DELETE" }),
+
+          listDoctors: () => fetchJson(`${API_BASE}/doctors`),
+          createDoctor: (d) =>
+            fetchJson(`${API_BASE}/doctors`, {
+              method: "POST",
+              body: JSON.stringify(d),
+            }),
+          updateDoctor: (id, d) =>
+            fetchJson(`${API_BASE}/doctors/${id}`, {
+              method: "PUT",
+              body: JSON.stringify(d),
+            }),
+          deleteDoctor: (id) =>
+            fetch(`${API_BASE}/doctors/${id}`, { method: "DELETE" }),
+
+          listAppointments: () => fetchJson(`${API_BASE}/appointments`),
+          listAppointmentsByPatient: (pid) =>
+            fetchJson(`${API_BASE}/appointments/patient/${pid}`),
+          bookAppointment: (a) =>
+            fetchJson(`${API_BASE}/appointments`, {
+              method: "POST",
+              body: JSON.stringify(a),
+            }),
+          rescheduleAppointment: (id, payload) =>
+            fetchJson(`${API_BASE}/appointments/${id}/reschedule`, {
+              method: "PUT",
+              body: JSON.stringify(payload),
+            }),
+          cancelAppointment: (id) =>
+            fetchJson(`${API_BASE}/appointments/${id}/cancel`, {
+              method: "PUT",
+            }),
+          assignDoctorToAppointment: (id, payload) =>
+            fetchJson(`${API_BASE}/appointments/${id}/assign`, {
+              method: "PUT",
+              body: JSON.stringify(payload),
+            }),
+          askChat: (q) =>
+            fetchJson(`${API_BASE}/chat/ask`, {
+              method: "POST",
+              body: JSON.stringify({ q }),
+            }),
+        };
+
+        const uid = () =>
+          Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+        function validatePerson({ name, years, months, email, phone, disease }) {
+          const errors = {};
+          if (!name || !name.trim()) errors.name = "Name is required";
+          if (
+            years === "" ||
+            years === null ||
+            isNaN(years) ||
+            Number(years) < 0
+          )
+            errors.years = "Valid years required";
+          if (
+            months === "" ||
+            months === null ||
+            isNaN(months) ||
+            Number(months) < 0 ||
+            Number(months) > 11
+          )
+            errors.months = "Months must be 0-11";
+          if (
+            !email ||
+            !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email)
+          )
+            errors.email = "Valid email required";
+          if (!phone || !/^\d{10}$/.test(phone))
+            errors.phone = "Phone must be 10 digits";
+          if (!disease || !disease.trim())
+            errors.disease = "This field is required";
+          return errors;
+        }
+
+        function validateDoctor({
+          name,
+          years,
+          months,
+          email,
+          phone,
+          specialization,
+        }) {
+          const errors = {};
+          if (!name || !name.trim()) errors.name = "Name is required";
+          if (
+            years === "" ||
+            years === null ||
+            isNaN(years) ||
+            Number(years) < 5
+          )
+            errors.years = "Valid years required";
+          if (
+            months === "" ||
+            months === null ||
+            isNaN(months) ||
+            Number(months) < 0 ||
+            Number(months) > 11
+          )
+            errors.months = "Months must be 0-11";
+          if (
+            !email ||
+            !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email)
+          )
+            errors.email = "Valid email required";
+          if (!phone || !/^\d{10}$/.test(phone))
+            errors.phone = "Phone must be 10 digits";
+          if (!specialization || !specialization.trim())
+            errors.specialization = "This field is required";
+          return errors;
+        }
+
+        // ---------- GLOBAL PROFILE MODAL HELPERS ----------
+        function openProfileModal(payload) {
+          const modalEl = document.getElementById("profileModal");
+          if (!modalEl) return;
+          const bsModal =
+            bootstrap.Modal.getOrCreateInstance(modalEl);
+
+          const {
+            type,
+            person,
+            appointments = [],
+            doctor,
+          } = payload;
+
+          document.getElementById("patientExtra").classList.add("d-none");
+          document.getElementById("doctorExtra").classList.add("d-none");
+          document
+            .getElementById("medicalHistoryWrapper")
+            .classList.add("d-none");
+
+          document.getElementById("profileName").textContent =
+            person.name || "";
+          document.getElementById("profileRole").textContent =
+            type === "patient" ? "Patient" : "Doctor";
+
+          if (type === "patient") {
+            const ageLabel = `${person.years || 0}y ${person.months || 0}m`;
+            document.getElementById("patientAge").textContent = ageLabel;
+            document.getElementById("patientPhone").textContent =
+              person.phone || "";
+            document.getElementById("patientDisease").textContent =
+              person.disease || "";
+            document.getElementById("patientExtra").classList.remove("d-none");
+
+            const historyList =
+              document.getElementById("medicalHistoryList");
+            historyList.innerHTML = "";
+            appointments
+              .sort((a, b) =>
+                String(a.datetime).localeCompare(String(b.datetime))
               )
-            )
-          )
-        ),
+              .forEach((a) => {
+                const wrapper = document.createElement("div");
+                wrapper.className =
+                  "list-group-item d-flex justify-content-between";
+                const d = new Date(a.datetime);
+                const dateStr = isNaN(d.getTime())
+                  ? a.datetime
+                  : d.toLocaleString();
+                wrapper.innerHTML = `
+                  <div>
+                    <div class="history-item-title">${
+                      a.status || "Appointment"
+                    }</div>
+                    <div class="text-muted small">
+                      Doctor: ${a.doctorName || "Not assigned"}
+                    </div>
+                  </div>
+                  <div class="text-end">
+                    <div class="history-item-date">${dateStr}</div>
+                    <span class="history-item-tag">${
+                      a.status || "Booked"
+                    }</span>
+                  </div>
+                `;
+                historyList.appendChild(wrapper);
+              });
+            if (appointments.length > 0) {
+              document
+                .getElementById("medicalHistoryWrapper")
+                .classList.remove("d-none");
+            }
 
-        React.createElement('div', { className: tab === 'patients' ? 'col-lg-9' : 'col-lg-6' },
-          tab === 'patients' ? React.createElement(PatientPage) : React.createElement(DoctorPage)
-        ),
-
-        React.createElement('div', { className: (tab === 'patients' ? 'col-lg-3 right-column' : 'col-lg-6 right-column') },
-          tab === 'patients' ? React.createElement(ChatbotCard) : React.createElement(DoctorPanel)
-        )
-      );
-    }
-
-    /* PatientPage component (unchanged) */
-    function PatientPage(){
-      const [patients, setPatients] = useState([]);
-      const [appointments, setAppointments] = useState([]);
-      const [loading, setLoading] = useState(false);
-      const [editingId, setEditingId] = useState(null);
-      const [form, setForm] = useState({ name:'', years:'', months:'', email:'', phone:'', disease:'' });
-      const [errors, setErrors] = useState({});
-      useEffect(()=> { loadAll(); }, []);
-
-      async function loadAll(){
-        setLoading(true);
-        try {
-          const [pats, appts] = await Promise.all([api.listPatients(), api.listAppointments()]);
-          setPatients(pats || []);
-          setAppointments(appts || []);
-        } catch (err) {
-          console.error(err);
-          Swal.fire({ icon:'error', title:'Load error', text: String(err) });
-        } finally { setLoading(false); }
-      }
-
-      function resetForm(){ setForm({ name:'', years:'', months:'', email:'', phone:'', disease:'' }); setEditingId(null); setErrors({}); }
-
-      async function handleSave(e){
-        e.preventDefault();
-        const vals = { ...form };
-        const errs = validatePerson(vals);
-        if (Object.keys(errs).length) { setErrors(errs); return; }
-        setLoading(true);
-        try {
-          if (editingId) {
-            const updated = await api.updatePatient(editingId, vals);
-            setPatients(prev => prev.map(p => p.id === updated.id ? updated : p));
-            Swal.fire({ icon:'success', title:'Patient updated', timer:1200, showConfirmButton:false });
+            document.getElementById(
+              "profileMeta"
+            ).innerHTML = `Total appointments: <strong>${
+              appointments.length
+            }</strong>`;
           } else {
-            const created = await api.createPatient(vals);
-            setPatients(prev => [created, ...prev]);
-            Swal.fire({ icon:'success', title:'Patient added', timer:1200, showConfirmButton:false });
+            document.getElementById("doctorSpeciality").textContent =
+              person.specialization || "";
+            document.getElementById("doctorPhone").textContent =
+              person.phone || "";
+            document.getElementById("doctorEmail").textContent =
+              person.email || "";
+            document.getElementById("doctorExtra").classList.remove("d-none");
+            document.getElementById(
+              "profileMeta"
+            ).innerHTML = `Consulting patients across appointments.`;
           }
-          resetForm();
-        } catch (err) {
-          handleServerError(err);
-        } finally { setLoading(false); }
-      }
 
-      function handleServerError(err){
-        let msg = String(err.message || err);
-        try { const parsed = JSON.parse(msg); if (typeof parsed === 'object') msg = Object.values(parsed).join('; '); } catch(e){}
-        Swal.fire({ icon:'error', title:'Error', text: msg });
-      }
-
-      async function handleEdit(p){
-        setEditingId(p.id);
-        setForm({ name:p.name, years:p.years, months:p.months, email:p.email, phone:p.phone, disease:p.disease });
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-
-      async function handleDelete(p){
-        const res = await Swal.fire({ title: 'Delete patient?', text: `This will remove patient ${p.name} and their appointments.`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, delete' });
-        if (res.isConfirmed) {
-          try {
-            await api.deletePatient(p.id);
-            setPatients(prev => prev.filter(x => x.id !== p.id));
-            const appts = await api.listAppointments();
-            setAppointments(appts || []);
-            Swal.fire({ icon:'success', title:'Deleted', timer:1200, showConfirmButton:false });
-          } catch (err) { handleServerError(err); }
-        }
-      }
-
-      async function openBookModal(patient){
-        const date = prompt('Enter appointment date and time (e.g., 2025-12-31 10:30)');
-        if (!date) return;
-        setLoading(true);
-        try {
-          const appt = { patientId: patient.id, patientName: patient.name, datetime: date, status: 'Booked' };
-          const saved = await api.bookAppointment(appt);
-          setAppointments(prev => [saved, ...prev]);
-          Swal.fire({ icon:'success', title:'Appointment booked', timer:1200, showConfirmButton:false });
-        } catch (err) { handleServerError(err); } finally { setLoading(false); }
-      }
-
-      async function rescheduleAppointment(appt){
-        const date = prompt('Enter new date and time', appt.datetime);
-        if (!date) return;
-        setLoading(true);
-        try {
-          const updated = await api.rescheduleAppointment(appt.id, date);
-          setAppointments(prev => prev.map(a => a.id === updated.id ? updated : a));
-          Swal.fire({ icon:'success', title:'Rescheduled', timer:1200, showConfirmButton:false });
-        } catch (err) { handleServerError(err); } finally { setLoading(false); }
-      }
-
-      async function cancelAppointment(appt){
-        const res = await Swal.fire({ title: 'Cancel appointment?', text: `${appt.patientName} - ${appt.datetime}`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, cancel' });
-        if (!res.isConfirmed) return;
-        setLoading(true);
-        try {
-          const updated = await api.cancelAppointment(appt.id);
-          setAppointments(prev => prev.map(a => a.id === updated.id ? updated : a));
-          Swal.fire({ icon:'success', title:'Cancelled', timer:1200, showConfirmButton:false });
-        } catch (err) { handleServerError(err); } finally { setLoading(false); }
-      }
-
-      return React.createElement('div', { className: 'card p-4 animate__animated animate__fadeIn position-relative' },
-        loading && React.createElement('div', { className: 'loading-overlay' }, React.createElement('div', { className: 'spinner-border text-primary', role: 'status' })),
-        React.createElement('h5', { className: 'mb-3' }, 'Patient Management'),
-        React.createElement('form', { onSubmit: handleSave, className: 'mb-4' },
-          React.createElement('div', { className: 'row g-2' },
-            React.createElement('div', { className: 'col-md-6' },
-              React.createElement('label', { className: 'form-label' }, 'Name'),
-              React.createElement('input', { className: 'form-control ' + (errors.name ? 'is-invalid' : ''), value: form.name, onChange: e=>setForm({...form, name:e.target.value}) }),
-              errors.name && React.createElement('div', { className: 'form-error' }, errors.name)
-            ),
-            React.createElement('div', { className: 'col-md-3' },
-              React.createElement('label', { className: 'form-label' }, 'Age Years'),
-              React.createElement('input', { type: 'number', min: 0, className: 'form-control ' + (errors.years ? 'is-invalid' : ''), value: form.years, onChange: e=>setForm({...form, years:e.target.value}) }),
-              errors.years && React.createElement('div', { className: 'form-error' }, errors.years)
-            ),
-            React.createElement('div', { className: 'col-md-3' },
-              React.createElement('label', { className: 'form-label' }, 'Age Months'),
-              React.createElement('input', { type: 'number', min: 0, max: 11, className: 'form-control ' + (errors.months ? 'is-invalid' : ''), value: form.months, onChange: e=>setForm({...form, months:e.target.value}) }),
-              errors.months && React.createElement('div', { className: 'form-error' }, errors.months)
-            ),
-            React.createElement('div', { className: 'col-md-6' },
-              React.createElement('label', { className: 'form-label' }, 'Email'),
-              React.createElement('input', { className: 'form-control ' + (errors.email ? 'is-invalid' : ''), value: form.email, onChange: e=>setForm({...form, email:e.target.value}) }),
-              errors.email && React.createElement('div', { className: 'form-error' }, errors.email)
-            ),
-            React.createElement('div', { className: 'col-md-6' },
-              React.createElement('label', { className: 'form-label' }, 'Phone'),
-              React.createElement('input', { className: 'form-control ' + (errors.phone ? 'is-invalid' : ''), value: form.phone, onChange: e=>setForm({...form, phone:e.target.value}) }),
-              errors.phone && React.createElement('div', { className: 'form-error' }, errors.phone)
-            ),
-            React.createElement('div', { className: 'col-12' },
-              React.createElement('label', { className: 'form-label' }, 'Disease'),
-              React.createElement('input', { className: 'form-control ' + (errors.disease ? 'is-invalid' : ''), value: form.disease, onChange: e=>setForm({...form, disease:e.target.value}) }),
-              errors.disease && React.createElement('div', { className: 'form-error' }, errors.disease)
-            )
-          ),
-          React.createElement('div', { className: 'mt-3 d-flex gap-2' },
-            React.createElement('button', { type: 'submit', className: 'btn btn-primary' }, editingId ? 'Update Patient' : 'Add Patient'),
-            React.createElement('button', { type: 'button', className: 'btn btn-outline-secondary', onClick: resetForm }, 'Reset')
-          )
-        ),
-        React.createElement('div', { className: 'row' },
-          React.createElement('div', { className: 'col-md-6' },
-            React.createElement('h6', null, 'Patients'),
-            React.createElement('div', { className: 'list-group' },
-              patients.length === 0 && React.createElement('div', { className: 'small-muted' }, 'No patients yet'),
-              patients.map(p => React.createElement('div', { key: p.id, className: 'list-group-item d-flex justify-content-between align-items-start' },
-                React.createElement('div', null,
-                  React.createElement('div', { className: 'fw-bold' }, p.name, ' ', React.createElement('span', { className: 'small-muted' }, `(${p.years}y ${p.months}m)`)),
-                  React.createElement('div', { className: 'small-muted' }, `${p.email} • ${p.phone}`),
-                  React.createElement('div', { className: 'mt-1' }, React.createElement('span', { className: 'badge-disease' }, p.disease))
-                ),
-                React.createElement('div', { className: 'btn-group modifyBtn' },
-                  React.createElement('button', { className: 'btn btn-sm btn-outline-primary', onClick: ()=>openBookModal(p) }, 'Book'),
-                  React.createElement('button', { className: 'btn btn-sm btn-outline-secondary', onClick: ()=>handleEdit(p) }, 'Edit'),
-                  React.createElement('button', { className: 'btn btn-sm btn-outline-danger', onClick: ()=>handleDelete(p) }, 'Delete')
-                )
-              ))
-            )
-          ),
-          React.createElement('div', { className: 'col-md-6' },
-            React.createElement('h6', null, 'Appointments'),
-            React.createElement('div', { className: 'small-muted mb-2' }, 'Click to reschedule or cancel'),
-            React.createElement('div', { className: 'list-group' },
-              appointments.length === 0 && React.createElement('div', { className: 'small-muted' }, 'No appointments'),
-              appointments.map(a => React.createElement('div', { key: a.id, className: 'list-group-item d-flex justify-content-between align-items-center' },
-                React.createElement('div', null,
-                  React.createElement('div', { className: 'fw-bold' }, a.patientName),
-                  React.createElement('div', { className: 'small-muted' }, `${a.datetime} • ${a.status}`)
-                ),
-                React.createElement('div', { className: 'btn-group modifyBtn' },
-                  React.createElement('button', { className: 'btn btn-sm btn-outline-warning', onClick: ()=>rescheduleAppointment(a) }, 'Reschedule'),
-                  React.createElement('button', { className: 'btn btn-sm btn-outline-danger', onClick: ()=>cancelAppointment(a) }, 'Cancel')
-                )
-              ))
-            )
-          )
-        )
-      );
-    }
-
-    /* DoctorPage component (unchanged) */
-    function DoctorPage(){
-      const [doctors, setDoctors] = useState([]);
-      const [loading, setLoading] = useState(false);
-      const [editingId, setEditingId] = useState(null);
-      const [form, setForm] = useState({ name:'', years:'', months:'', email:'', phone:'', specialization:'' });
-      const [errors, setErrors] = useState({});
-
-      useEffect(()=> { loadDoctors(); }, []);
-      async function loadDoctors(){
-        setLoading(true);
-        try { const list = await api.listDoctors(); setDoctors(list || []); } catch(err){ console.error(err); Swal.fire({ icon:'error', title:'Load error', text: String(err) }); } finally { setLoading(false); }
-      }
-
-      function resetForm(){ setForm({ name:'', years:'', months:'', email:'', phone:'', specialization:'' }); setEditingId(null); setErrors({}); }
-
-      async function handleSave(e){
-        e.preventDefault();
-        const vals = { ...form };
-        const errs = validateDoctor(vals);
-        if (Object.keys(errs).length) { setErrors(errs); return; }
-        setLoading(true);
-        try {
-          if (editingId) {
-            const updated = await api.updateDoctor(editingId, vals);
-            setDoctors(prev => prev.map(d => d.id === updated.id ? updated : d));
-            Swal.fire({ icon:'success', title:'Doctor updated', timer:1200, showConfirmButton:false });
-          } else {
-            const created = await api.createDoctor(vals);
-            setDoctors(prev => [created, ...prev]);
-            Swal.fire({ icon:'success', title:'Doctor added', timer:1200, showConfirmButton:false });
-          }
-          resetForm();
-        } catch (err) {
-          let msg = String(err.message || err);
-          try { const parsed = JSON.parse(msg); if (typeof parsed === 'object') msg = Object.values(parsed).join('; '); } catch(e){}
-          Swal.fire({ icon:'error', title:'Error', text: msg });
-        } finally { setLoading(false); }
-      }
-
-      function handleEdit(d){ setEditingId(d.id); setForm({ name:d.name, years:d.years, months:d.months, email:d.email, phone:d.phone, specialization:d.specialization }); window.scrollTo({ top: 0, behavior: 'smooth' }); }
-
-      async function handleDelete(d){
-        const res = await Swal.fire({ title: 'Delete doctor?', text: `This will remove doctor ${d.name}.`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, delete' });
-        if (res.isConfirmed) {
-          try { await api.deleteDoctor(d.id); setDoctors(prev => prev.filter(x => x.id !== d.id)); Swal.fire({ icon:'success', title:'Deleted', timer:1200, showConfirmButton:false }); } catch(err){ Swal.fire({ icon:'error', title:'Error', text: String(err) }); }
-        }
-      }
-
-      return React.createElement('div', { className: 'card p-4 animate__animated animate__fadeIn position-relative' },
-        loading && React.createElement('div', { className: 'loading-overlay' }, React.createElement('div', { className: 'spinner-border text-success', role: 'status' })),
-        React.createElement('h5', { className: 'mb-3' }, 'Doctor Management'),
-        React.createElement('form', { onSubmit: handleSave, className: 'mb-4' },
-          React.createElement('div', { className: 'row g-2' },
-            React.createElement('div', { className: 'col-md-6' },
-              React.createElement('label', { className: 'form-label' }, 'Name'),
-              React.createElement('input', { className: 'form-control ' + (errors.name ? 'is-invalid' : ''), value: form.name, onChange: e=>setForm({...form, name:e.target.value}) }),
-              errors.name && React.createElement('div', { className: 'form-error' }, errors.name)
-            ),
-            React.createElement('div', { className: 'col-md-3' },
-              React.createElement('label', { className: 'form-label' }, 'Age Years'),
-              React.createElement('input', { type: 'number', min: 0, className: 'form-control ' + (errors.years ? 'is-invalid' : ''), value: form.years, onChange: e=>setForm({...form, years:e.target.value}) }),
-              errors.years && React.createElement('div', { className: 'form-error' }, errors.years)
-            ),
-            React.createElement('div', { className: 'col-md-3' },
-              React.createElement('label', { className: 'form-label' }, 'Age Months'),
-              React.createElement('input', { type: 'number', min: 0, max: 11, className: 'form-control ' + (errors.months ? 'is-invalid' : ''), value: form.months, onChange: e=>setForm({...form, months:e.target.value}) }),
-              errors.months && React.createElement('div', { className: 'form-error' }, errors.months)
-            ),
-            React.createElement('div', { className: 'col-md-6' },
-              React.createElement('label', { className: 'form-label' }, 'Email'),
-              React.createElement('input', { className: 'form-control ' + (errors.email ? 'is-invalid' : ''), value: form.email, onChange: e=>setForm({...form, email:e.target.value}) }),
-              errors.email && React.createElement('div', { className: 'form-error' }, errors.email)
-            ),
-            React.createElement('div', { className: 'col-md-6' },
-              React.createElement('label', { className: 'form-label' }, 'Phone'),
-              React.createElement('input', { className: 'form-control ' + (errors.phone ? 'is-invalid' : ''), value: form.phone, onChange: e=>setForm({...form, phone:e.target.value}) }),
-              errors.phone && React.createElement('div', { className: 'form-error' }, errors.phone)
-            ),
-            React.createElement('div', { className: 'col-12' },
-              React.createElement('label', { className: 'form-label' }, 'Specialization'),
-              React.createElement('input', { className: 'form-control ' + (errors.specialization ? 'is-invalid' : ''), value: form.specialization, onChange: e=>setForm({...form, specialization:e.target.value}) }),
-              errors.specialization && React.createElement('div', { className: 'form-error' }, errors.specialization)
-            )
-          ),
-          React.createElement('div', { className: 'mt-3 d-flex gap-2' },
-            React.createElement('button', { type: 'submit', className: 'btn btn-success' }, editingId ? 'Update Doctor' : 'Add Doctor'),
-            React.createElement('button', { type: 'button', className: 'btn btn-outline-secondary', onClick: resetForm }, 'Reset')
-          )
-        ),
-        React.createElement('h6', null, 'Doctors'),
-        React.createElement('div', { className: 'list-group' },
-          doctors.length === 0 && React.createElement('div', { className: 'small-muted' }, 'No doctors yet'),
-          doctors.map(d => React.createElement('div', { key: d.id, className: 'list-group-item d-flex justify-content-between align-items-start' },
-            React.createElement('div', null,
-              React.createElement('div', { className: 'fw-bold' }, d.name, ' ', React.createElement('span', { className: 'small-muted' }, `(${d.years}y ${d.months}m)`)),
-              React.createElement('div', { className: 'small-muted' }, `${d.email} • ${d.phone}`),
-              React.createElement('div', { className: 'mt-1' }, React.createElement('span', { className: 'badge bg-info text-dark' }, d.specialization))
-            ),
-            React.createElement('div', { className: 'btn-group' },
-              React.createElement('button', { className: 'btn btn-sm btn-outline-secondary', onClick: ()=>handleEdit(d) }, 'Edit'),
-              React.createElement('button', { className: 'btn btn-sm btn-outline-danger', onClick: ()=>handleDelete(d) }, 'Delete')
-            )
-          ))
-        )
-      );
-    }
-
-    /* Chatbot (unchanged) */
-    function ChatbotCard(){
-      const [messages, setMessages] = useState([{ id: uid(), from: 'bot', text: 'Hello! I am the hospital assistant. Ask about visiting hours, appointments, emergency, or insurance.' }]);
-      const [input, setInput] = useState('');
-      const [loading, setLoading] = useState(false);
-      const boxRef = useRef();
-      useEffect(()=> { if (boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight; }, [messages]);
-
-      async function sendMessage(){
-        if (!input.trim()) return;
-        const userMsg = { id: uid(), from: 'user', text: input.trim() };
-        setMessages(prev => [...prev, userMsg]);
-        setInput('');
-        setLoading(true);
-        try {
-          const res = await api.askChat(userMsg.text);
-          const reply = (res && res.answer) ? res.answer : "I didn't quite get that.";
-          setMessages(prev => [...prev, { id: uid(), from: 'bot', text: reply }]);
-        } catch (err) {
-          setMessages(prev => [...prev, { id: uid(), from: 'bot', text: 'Sorry, chat service is unavailable.' }]);
-        } finally { setLoading(false); }
-      }
-
-      return React.createElement('div', { className: 'card p-3 animate__animated animate__fadeInRight position-relative' },
-        React.createElement('h6', { className: 'mb-2' }, 'Hospital Chatbot'),
-        React.createElement('div', { className: 'chat-box mb-3', ref: boxRef },
-          messages.map(m => React.createElement('div', { key: m.id, className: (m.from === 'user' ? 'msg-user mb-2' : 'msg-bot mb-2') },
-            React.createElement('div', { className: 'd-inline-block p-2 rounded ' + (m.from === 'user' ? 'bg-primary text-white' : 'bg-light text-dark') }, m.text)
-          )),
-          loading && React.createElement('div', { className: 'small-muted' }, 'Thinking...')
-        ),
-        React.createElement('div', { className: 'input-group' },
-          React.createElement('input', { className: 'form-control', value: input, onChange: e=>setInput(e.target.value), placeholder: 'Ask a question...', onKeyDown: e=>{ if(e.key==='Enter') sendMessage(); } }),
-          React.createElement('button', { className: 'btn btn-primary', onClick: sendMessage }, 'Send')
-        )
-      );
-    }
-
-    /* DoctorPanel: improved stats layout + assign action */
-    function DoctorPanel(){
-      const [doctors, setDoctors] = useState([]);
-      const [appointments, setAppointments] = useState([]);
-      const [filterDoctor, setFilterDoctor] = useState('');
-      const [loading, setLoading] = useState(false);
-      const [assigning, setAssigning] = useState({}); // { [apptId]: doctorId }
-
-      useEffect(()=> { loadData(); }, []);
-
-      async function loadData(){
-        setLoading(true);
-        try {
-          const [docs, appts] = await Promise.all([api.listDoctors(), api.listAppointments()]);
-          setDoctors(docs || []);
-          const sorted = (appts || []).slice().sort((a,b)=> (a.datetime || '').localeCompare(b.datetime || ''));
-          setAppointments(sorted);
-        } catch (err) {
-          console.error(err);
-        } finally { setLoading(false); }
-      }
-
-      const totalDoctors = doctors.length;
-      const totalAppointments = appointments.length;
-      const upcoming = appointments.filter(a => a.status && a.status.toLowerCase() !== 'cancelled').slice(0,6);
-      const filtered = filterDoctor ? appointments.filter(a => String(a.doctorId) === String(filterDoctor)) : appointments;
-
-      function onSelectDoctor(apptId, docId){
-        setAssigning(prev => ({ ...prev, [apptId]: docId }));
-      }
-
-      async function doAssign(appt){
-        const docId = assigning[appt.id] || (appt.doctorId || '');
-        if (!docId) {
-          Swal.fire({ icon:'info', title:'Select a doctor first' });
-          return;
-        }
-        const doc = doctors.find(d => String(d.id) === String(docId));
-        if (!doc) {
-          Swal.fire({ icon:'error', title:'Doctor not found' });
-          return;
+          bsModal.show();
         }
 
-        const res = await Swal.fire({
-          title: 'Assign doctor?',
-          html: `<b>${doc.name}</b> will be assigned to <b>${appt.patientName}</b> at <b>${appt.datetime}</b>.`,
-          icon: 'question',
-          showCancelButton: true,
-          confirmButtonText: 'Assign'
-        });
-        if (!res.isConfirmed) return;
+        // ---------- DASHBOARD COMPONENT ----------
+        function Dashboard({ patients, doctors, appointments }) {
+          const statusChartRef = useRef(null);
+          const dailyChartRef = useRef(null);
+          const statusChartInstance = useRef(null);
+          const dailyChartInstance = useRef(null);
 
-        try {
-          const payload = { doctorId: doc.id, doctorName: doc.name };
-          const updated = await api.assignDoctorToAppointment(appt.id, payload);
-          setAppointments(prev => prev.map(a => a.id === updated.id ? updated : a));
-          setAssigning(prev => { const copy = { ...prev }; delete copy[appt.id]; return copy; });
-          Swal.fire({ icon:'success', title:'Assigned', timer:1200, showConfirmButton:false });
-        } catch (err) {
-          Swal.fire({ icon:'error', title:'Error', text: String(err) });
-        }
-      }
+          useEffect(() => {
+            const booked = appointments.filter(
+              (a) => a.status === "Booked"
+            ).length;
+            const completed = appointments.filter(
+              (a) => a.status === "Completed"
+            ).length;
+            const cancelled = appointments.filter(
+              (a) => a.status === "Cancelled"
+            ).length;
 
-      async function quickCancel(appt){
-        const res = await Swal.fire({ title: 'Cancel appointment?', text: `${appt.patientName} - ${appt.datetime}`, icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, cancel' });
-        if (!res.isConfirmed) return;
-        try {
-          const updated = await api.cancelAppointment(appt.id);
-          setAppointments(prev => prev.map(a => a.id === updated.id ? updated : a));
-          Swal.fire({ icon:'success', title:'Cancelled', timer:1200, showConfirmButton:false });
-        } catch (err) {
-          Swal.fire({ icon:'error', title:'Error', text: String(err) });
-        }
-      }
-
-      async function quickReschedule(appt){
-        const date = prompt('Enter new date and time', appt.datetime);
-        if (!date) return;
-        try {
-          const updated = await api.rescheduleAppointment(appt.id, date);
-          setAppointments(prev => prev.map(a => a.id === updated.id ? updated : a));
-          Swal.fire({ icon:'success', title:'Rescheduled', timer:1200, showConfirmButton:false });
-        } catch (err) {
-          Swal.fire({ icon:'error', title:'Error', text: String(err) });
-        }
-      }
-
-      return React.createElement('div', { className: 'card p-3 doc_panel animate__animated animate__fadeInRight position-relative' },
-        loading && React.createElement('div', { className: 'loading-overlay' }, React.createElement('div', { className: 'spinner-border text-secondary', role: 'status' })),
-        React.createElement('h6', { className: 'mb-2' }, 'Doctor Quick Panel'),
-
-        React.createElement('div', { className: 'mb-3' },
-          React.createElement('div', { className: 'stats-row mb-2' },
-            React.createElement('div', { className: 'stat-card stat-1 small-card' },
-              React.createElement('div', { className: 'fw-bold fs-4' }, totalDoctors),
-              React.createElement('div', null, 'Doctors')
-            ),
-            React.createElement('div', { className: 'stat-card stat-2 small-card' },
-              React.createElement('div', { className: 'fw-bold fs-4' }, totalAppointments),
-              React.createElement('div', null, 'Appointments')
-            ),
-            React.createElement('div', { className: 'stat-card stat-3 small-card' },
-              React.createElement('div', { className: 'fw-bold fs-4' }, upcoming.length),
-              React.createElement('div', null, 'Upcoming')
-            )
-          ),
-          React.createElement('div', { className: 'mb-2' },
-            React.createElement('label', { className: 'form-label small-muted' }, 'Filter by doctor'),
-            React.createElement('select', { className: 'form-select', value: filterDoctor, onChange: e=>setFilterDoctor(e.target.value) },
-              React.createElement('option', { value: '' }, 'All doctors'),
-              doctors.map(d => React.createElement('option', { key: d.id, value: d.id }, d.name + (d.specialization ? ' — ' + d.specialization : '')))
-            )
-          )
-        ),
-
-        React.createElement('div', { className: 'mb-2' },
-          React.createElement('h6', { className: 'mb-1' }, 'Upcoming Appointments'),
-          filtered.length === 0 && React.createElement('div', { className: 'small-muted' }, 'No appointments found'),
-          React.createElement('div', { className: 'list-group' },
-            (filtered.slice(0,12) || []).map(a => React.createElement('div', { key: a.id, className: 'list-group-item d-flex justify-content-between align-items-start' },
-              React.createElement('div', null,
-                React.createElement('div', { className: 'fw-bold' }, a.patientName),
-                React.createElement('div', { className: 'small-muted' }, `${a.datetime} • ${a.doctorName || 'Unassigned'}`),
-                React.createElement('div', { className: 'small-muted' }, `Status: ${a.status}`)
-              ),
-              React.createElement('div', { style: { minWidth: 220 }, className: 'appt-controls' },
-                React.createElement('select', {
-                  className: 'form-select form-select-sm',
-                  value: assigning[a.id] || (a.doctorId || ''),
-                  onChange: e => onSelectDoctor(a.id, e.target.value)
+            const statusCtx = statusChartRef.current;
+            if (statusCtx) {
+              if (statusChartInstance.current) {
+                statusChartInstance.current.destroy();
+              }
+              statusChartInstance.current = new Chart(statusCtx, {
+                type: "doughnut",
+                data: {
+                  labels: ["Booked", "Completed", "Cancelled"],
+                  datasets: [
+                    {
+                      data: [booked, completed, cancelled],
+                      backgroundColor: [
+                        "#3b82f6",
+                        "#22c55e",
+                        "#ef4444",
+                      ],
+                    },
+                  ],
                 },
-                  React.createElement('option', { value: '' }, 'Select doctor'),
-                  doctors.map(d => React.createElement('option', { key: d.id, value: d.id }, d.name))
-                ),
-                React.createElement('button', { className: 'btn btn-sm btn-primary', onClick: ()=>doAssign(a) }, 'Assign'),
-                React.createElement('button', { className: 'btn btn-sm btn-outline-warning', onClick: ()=>quickReschedule(a) }, 'Reschedule'),
-                React.createElement('button', { className: 'btn btn-sm btn-outline-danger', onClick: ()=>quickCancel(a) }, 'Cancel')
+                options: {
+                  plugins: { legend: { position: "bottom" } },
+                  cutout: "60%",
+                },
+              });
+            }
+
+            const dailyMap = {};
+            appointments.forEach((a) => {
+              const key = String(a.datetime).slice(0, 10);
+              dailyMap[key] = (dailyMap[key] || 0) + 1;
+            });
+            const labels = Object.keys(dailyMap).sort();
+            const values = labels.map((k) => dailyMap[k]);
+
+            const dailyCtx = dailyChartRef.current;
+            if (dailyCtx) {
+              if (dailyChartInstance.current) {
+                dailyChartInstance.current.destroy();
+              }
+              dailyChartInstance.current = new Chart(dailyCtx, {
+                type: "bar",
+                data: {
+                  labels,
+                  datasets: [
+                    {
+                      data: values,
+                      backgroundColor: "#2563eb",
+                    },
+                  ],
+                },
+                options: {
+                  plugins: { legend: { display: false } },
+                  scales: {
+                    y: { beginAtZero: true, ticks: { precision: 0 } },
+                  },
+                },
+              });
+            }
+          }, [appointments]);
+
+          const totalAppointments = appointments.length;
+          const bookedCount = appointments.filter(
+            (a) => a.status === "Booked"
+          ).length;
+          const completedCount = appointments.filter(
+            (a) => a.status === "Completed"
+          ).length;
+          const cancelledCount = appointments.filter(
+            (a) => a.status === "Cancelled"
+          ).length;
+
+          const today = new Date().toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          });
+
+          return React.createElement(
+            "div",
+            { className: "row g-3" },
+            React.createElement(
+              "div",
+              { className: "col-12" },
+              React.createElement(
+                "div",
+                { className: "card card-hero p-4" },
+                React.createElement(
+                  "div",
+                  {
+                    className:
+                      "d-flex align-items-center justify-content-between",
+                  },
+                  React.createElement(
+                    "div",
+                    null,
+                    React.createElement(
+                      "h3",
+                      { className: "mb-1" },
+                      "Dashboard"
+                    ),
+                    React.createElement(
+                      "div",
+                      { className: "small" },
+                      "Overview of patients, doctors, and appointments"
+                    )
+                  ),
+                  React.createElement(
+                    "div",
+                    { className: "text-end" },
+                    React.createElement(
+                      "div",
+                      { className: "small" },
+                      "Today"
+                    ),
+                    React.createElement(
+                      "div",
+                      { className: "fw-semibold" },
+                      today
+                    )
+                  )
+                )
               )
-            ))
-          )
-        ),
+            ),
+            React.createElement(
+              "div",
+              { className: "col-6 col-lg-3" },
+              React.createElement(
+                "div",
+                { className: "card border-0 shadow-sm" },
+                React.createElement(
+                  "div",
+                  { className: "card-body" },
+                  React.createElement(
+                    "div",
+                    { className: "small-muted mb-1" },
+                    "Patients"
+                  ),
+                  React.createElement(
+                    "h4",
+                    { className: "mb-0" },
+                    patients.length
+                  )
+                )
+              )
+            ),
+            React.createElement(
+              "div",
+              { className: "col-6 col-lg-3" },
+              React.createElement(
+                "div",
+                { className: "card border-0 shadow-sm" },
+                React.createElement(
+                  "div",
+                  { className: "card-body" },
+                  React.createElement(
+                    "div",
+                    { className: "small-muted mb-1" },
+                    "Doctors"
+                  ),
+                  React.createElement(
+                    "h4",
+                    { className: "mb-0" },
+                    doctors.length
+                  )
+                )
+              )
+            ),
+            React.createElement(
+              "div",
+              { className: "col-6 col-lg-3" },
+              React.createElement(
+                "div",
+                { className: "card border-0 shadow-sm" },
+                React.createElement(
+                  "div",
+                  { className: "card-body" },
+                  React.createElement(
+                    "div",
+                    { className: "small-muted mb-1" },
+                    "Appointments"
+                  ),
+                  React.createElement(
+                    "h4",
+                    { className: "mb-0" },
+                    totalAppointments
+                  )
+                )
+              )
+            ),
+            React.createElement(
+              "div",
+              { className: "col-6 col-lg-3" },
+              React.createElement(
+                "div",
+                { className: "card border-0 shadow-sm" },
+                React.createElement(
+                  "div",
+                  { className: "card-body" },
+                  React.createElement(
+                    "div",
+                    { className: "small-muted mb-1" },
+                    "Completed"
+                  ),
+                  React.createElement(
+                    "h4",
+                    { className: "mb-0 text-success" },
+                    completedCount
+                  )
+                )
+              )
+            ),
+            React.createElement(
+              "div",
+              { className: "col-12 col-lg-6" },
+              React.createElement(
+                "div",
+                { className: "card border-0 shadow-sm h-100" },
+                React.createElement(
+                  "div",
+                  { className: "card-body" },
+                  React.createElement(
+                    "h6",
+                    { className: "mb-3" },
+                    "Appointments by Status"
+                  ),
+                  React.createElement("canvas", {
+                    ref: statusChartRef,
+                    height: 220,
+                  })
+                )
+              )
+            ),
+            React.createElement(
+              "div",
+              { className: "col-12 col-lg-6" },
+              React.createElement(
+                "div",
+                { className: "card border-0 shadow-sm h-100" },
+                React.createElement(
+                  "div",
+                  { className: "card-body" },
+                  React.createElement(
+                    "h6",
+                    { className: "mb-3" },
+                    "Appointments per Day"
+                  ),
+                  React.createElement("canvas", {
+                    ref: dailyChartRef,
+                    height: 220,
+                  })
+                )
+              )
+            )
+          );
+        }
 
-        React.createElement('div', { className: 'mt-3' },
-          React.createElement('button', { className: 'btn btn-sm btn-outline-primary w-100', onClick: loadData }, 'Refresh')
-        )
-      );
+        // ---------- PATIENT PAGE ----------
+        function PatientPage({
+          doctors,
+          onAppointmentsChange,
+          globalAppointments,
+        }) {
+          const [patients, setPatients] = useState([]);
+          const [appointments, setAppointments] = useState([]);
+          const [loading, setLoading] = useState(false);
+          const [editingId, setEditingId] = useState(null);
+          const [form, setForm] = useState({
+            name: "",
+            years: "",
+            months: "",
+            email: "",
+            phone: "",
+            disease: "",
+          });
+          const [errors, setErrors] = useState({});
+
+          useEffect(() => {
+            loadAll();
+          }, []);
+
+          async function loadAll() {
+            setLoading(true);
+            try {
+              const [pats, appts] = await Promise.all([
+                api.listPatients(),
+                api.listAppointments(),
+              ]);
+              setPatients(pats || []);
+              setAppointments(appts || []);
+              onAppointmentsChange(appts || []);
+            } catch (err) {
+              Swal.fire({
+                icon: "error",
+                title: "Load error",
+                text: String(err),
+              });
+            } finally {
+              setLoading(false);
+            }
+          }
+
+          function resetForm() {
+            setForm({
+              name: "",
+              years: "",
+              months: "",
+              email: "",
+              phone: "",
+              disease: "",
+            });
+            setEditingId(null);
+            setErrors({});
+          }
+
+          async function handleSave(e) {
+            e.preventDefault();
+            const vals = { ...form };
+            const errs = validatePerson(vals);
+            if (Object.keys(errs).length) {
+              setErrors(errs);
+              return;
+            }
+            setLoading(true);
+            try {
+              if (editingId) {
+                const updated = await api.updatePatient(editingId, vals);
+                setPatients((prev) =>
+                  prev.map((p) => (p.id === updated.id ? updated : p))
+                );
+                Swal.fire({
+                  icon: "success",
+                  title: "Patient updated",
+                  timer: 1200,
+                  showConfirmButton: false,
+                });
+              } else {
+                const created = await api.createPatient(vals);
+                setPatients((prev) => [created, ...prev]);
+                Swal.fire({
+                  icon: "success",
+                  title: "Patient added",
+                  timer: 1200,
+                  showConfirmButton: false,
+                });
+              }
+              resetForm();
+            } catch (err) {
+              handleServerError(err);
+            } finally {
+              setLoading(false);
+            }
+          }
+
+          function handleServerError(err) {
+            let msg = String(err.message || err);
+            try {
+              const parsed = JSON.parse(msg);
+              if (typeof parsed === "object")
+                msg = Object.values(parsed).join("; ");
+            } catch (e) {}
+            Swal.fire({ icon: "error", title: "Error", text: msg });
+          }
+
+          function handleEdit(p) {
+            setEditingId(p.id);
+            setForm({
+              name: p.name,
+              years: p.years,
+              months: p.months,
+              email: p.email,
+              phone: p.phone,
+              disease: p.disease,
+            });
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }
+
+          async function handleDelete(p) {
+            const res = await Swal.fire({
+              title: "Delete patient?",
+              text: `This will remove patient ${p.name} and their appointments.`,
+              icon: "warning",
+              showCancelButton: true,
+              confirmButtonText: "Yes, delete",
+            });
+            if (res.isConfirmed) {
+              try {
+                await api.deletePatient(p.id);
+                setPatients((prev) => prev.filter((x) => x.id !== p.id));
+                const appts = await api.listAppointments();
+                setAppointments(appts || []);
+                onAppointmentsChange(appts || []);
+                Swal.fire({
+                  icon: "success",
+                  title: "Deleted",
+                  timer: 1200,
+                  showConfirmButton: false,
+                });
+              } catch (err) {
+                handleServerError(err);
+              }
+            }
+          }
+
+          async function openBookModal(patient) {
+            const { value: formValues } = await Swal.fire({
+              title: `Book appointment for ${patient.name}`,
+              html: `
+                <input type="text" id="datepicker" class="form-control mb-2" placeholder="Select date & time">
+                <select id="doctorSelect" class="form-select">
+                  <option value="">Select doctor</option>
+                  ${doctors
+                    .map(
+                      (d) =>
+                        `<option value="${d.id}">${d.name}${
+                          d.specialization
+                            ? " — " + d.specialization
+                            : ""
+                        }</option>`
+                    )
+                    .join("")}
+                </select>
+              `,
+              didOpen: () => {
+                flatpickr(document.getElementById("datepicker"), {
+                  enableTime: true,
+                  dateFormat: "Y-m-d H:i",
+                  minDate: "today",
+                });
+              },
+              focusConfirm: false,
+              showCancelButton: true,
+              confirmButtonText: "Book",
+              preConfirm: () => {
+                const date =
+                  document.getElementById("datepicker").value;
+                const doctorId =
+                  document.getElementById("doctorSelect").value;
+                if (!date || !doctorId) {
+                  Swal.showValidationMessage(
+                    "Please select both date/time and doctor"
+                  );
+                  return null;
+                }
+                return { date, doctorId };
+              },
+            });
+
+            if (!formValues) return;
+
+            setLoading(true);
+            try {
+              const doc = doctors.find(
+                (d) => String(d.id) === String(formValues.doctorId)
+              );
+              const appt = {
+                patientId: patient.id,
+                patientName: patient.name,
+                datetime: formValues.date,
+                status: "Booked",
+                doctorId: doc.id,
+                doctorName: doc.name,
+              };
+              const saved = await api.bookAppointment(appt);
+              setAppointments((prev) => [saved, ...prev]);
+              onAppointmentsChange([saved, ...appointments]);
+              Swal.fire({
+                icon: "success",
+                title: "Appointment booked",
+                timer: 1200,
+                showConfirmButton: false,
+              });
+            } catch (err) {
+              handleServerError(err);
+            } finally {
+              setLoading(false);
+            }
+          }
+
+          async function rescheduleAppointment(appt) {
+            const date = prompt("Enter new date and time", appt.datetime);
+            if (!date) return;
+            setLoading(true);
+            try {
+              const updated = await api.rescheduleAppointment(appt.id, date);
+              setAppointments((prev) =>
+                prev.map((a) => (a.id === updated.id ? updated : a))
+              );
+              onAppointmentsChange(
+                appointments.map((a) =>
+                  a.id === updated.id ? updated : a
+                )
+              );
+              Swal.fire({
+                icon: "success",
+                title: "Rescheduled",
+                timer: 1200,
+                showConfirmButton: false,
+              });
+            } catch (err) {
+              handleServerError(err);
+            } finally {
+              setLoading(false);
+            }
+          }
+
+          async function cancelAppointment(appt) {
+            const res = await Swal.fire({
+              title: "Cancel appointment?",
+              text: `${appt.patientName} - ${appt.datetime}`,
+              icon: "warning",
+              showCancelButton: true,
+              confirmButtonText: "Yes, cancel",
+            });
+            if (!res.isConfirmed) return;
+            setLoading(true);
+            try {
+              const updated = await api.cancelAppointment(appt.id);
+              setAppointments((prev) =>
+                prev.map((a) => (a.id === updated.id ? updated : a))
+              );
+              onAppointmentsChange(
+                appointments.map((a) =>
+                  a.id === updated.id ? updated : a
+                )
+              );
+              Swal.fire({
+                icon: "success",
+                title: "Cancelled",
+                timer: 1200,
+                showConfirmButton: false,
+              });
+            } catch (err) {
+              handleServerError(err);
+            } finally {
+              setLoading(false);
+            }
+          }
+
+          function assignDoctorInline(appt) {
+            Swal.fire({
+              title: `Assign doctor for ${appt.patientName}`,
+              input: "select",
+              inputOptions: doctors.reduce((opts, d) => {
+                opts[d.id] =
+                  d.name + (d.specialization ? " — " + d.specialization : "");
+                return opts;
+              }, {}),
+              inputPlaceholder: "Select a doctor",
+              showCancelButton: true,
+              confirmButtonText: "Assign",
+            }).then(async (res) => {
+              if (!res.value) return;
+              try {
+                const doc = doctors.find(
+                  (d) => String(d.id) === String(res.value)
+                );
+                const payload = {
+                  doctorId: doc.id,
+                  doctorName: doc.name,
+                };
+                const updated =
+                  await api.assignDoctorToAppointment(appt.id, payload);
+                setAppointments((prev) =>
+                  prev.map((a) => (a.id === updated.id ? updated : a))
+                );
+                onAppointmentsChange(
+                  appointments.map((a) =>
+                    a.id === updated.id ? updated : a
+                  )
+                );
+                Swal.fire({
+                  icon: "success",
+                  title: "Doctor assigned",
+                  timer: 1200,
+                  showConfirmButton: false,
+                });
+              } catch (err) {
+                Swal.fire({
+                  icon: "error",
+                  title: "Error",
+                  text: String(err),
+                });
+              }
+            });
+          }
+
+          function openPatientProfile(p) {
+            const appts = appointments.filter(
+              (a) => String(a.patientId) === String(p.id)
+            );
+            openProfileModal({
+              type: "patient",
+              person: p,
+              appointments: appts,
+            });
+          }
+
+          function openDoctorProfileFromAppt(a) {
+            if (!a.doctorId) return;
+            const doc = doctors.find(
+              (d) => String(d.id) === String(a.doctorId)
+            );
+            if (!doc) return;
+            openProfileModal({
+              type: "doctor",
+              person: doc,
+              appointments: appointments.filter(
+                (x) => String(x.doctorId) === String(doc.id)
+              ),
+            });
+          }
+
+          function statusClass(status) {
+            if (status === "Completed") return "status-completed";
+            if (status === "Cancelled") return "status-cancelled";
+            return "status-booked";
+          }
+
+          return React.createElement(
+            "div",
+            {
+              className:
+                "card p-4 animate__animated animate__fadeIn position-relative",
+            },
+            loading &&
+              React.createElement(
+                "div",
+                { className: "loading-overlay" },
+                React.createElement("div", {
+                  className: "spinner-border text-primary",
+                  role: "status",
+                })
+              ),
+            React.createElement(
+              "h5",
+              { className: "mb-3" },
+              "Patient Management"
+            ),
+            React.createElement(
+              "form",
+              { onSubmit: handleSave, className: "mb-4" },
+              React.createElement(
+                "div",
+                { className: "row g-2" },
+                React.createElement(
+                  "div",
+                  { className: "col-md-6" },
+                  React.createElement(
+                    "label",
+                    { className: "form-label" },
+                    "Name"
+                  ),
+                  React.createElement("input", {
+                    className:
+                      "form-control " + (errors.name ? "is-invalid" : ""),
+                    value: form.name,
+                    onChange: (e) =>
+                      setForm({ ...form, name: e.target.value }),
+                  }),
+                  errors.name &&
+                    React.createElement(
+                      "div",
+                      { className: "form-error" },
+                      errors.name
+                    )
+                ),
+                React.createElement(
+                  "div",
+                  { className: "col-md-3" },
+                  React.createElement(
+                    "label",
+                    { className: "form-label" },
+                    "Age Years"
+                  ),
+                  React.createElement("input", {
+                    type: "number",
+                    min: 0,
+                    className:
+                      "form-control " + (errors.years ? "is-invalid" : ""),
+                    value: form.years,
+                    onChange: (e) =>
+                      setForm({ ...form, years: e.target.value }),
+                  }),
+                  errors.years &&
+                    React.createElement(
+                      "div",
+                      { className: "form-error" },
+                      errors.years
+                    )
+                ),
+                React.createElement(
+                  "div",
+                  { className: "col-md-3" },
+                  React.createElement(
+                    "label",
+                    { className: "form-label" },
+                    "Age Months"
+                  ),
+                  React.createElement("input", {
+                    type: "number",
+                    min: 0,
+                    max: 11,
+                    className:
+                      "form-control " + (errors.months ? "is-invalid" : ""),
+                    value: form.months,
+                    onChange: (e) =>
+                      setForm({ ...form, months: e.target.value }),
+                  }),
+                  errors.months &&
+                    React.createElement(
+                      "div",
+                      { className: "form-error" },
+                      errors.months
+                    )
+                ),
+                React.createElement(
+                  "div",
+                  { className: "col-md-6" },
+                  React.createElement(
+                    "label",
+                    { className: "form-label" },
+                    "Email"
+                  ),
+                  React.createElement("input", {
+                    className:
+                      "form-control " + (errors.email ? "is-invalid" : ""),
+                    value: form.email,
+                    onChange: (e) =>
+                      setForm({ ...form, email: e.target.value }),
+                  }),
+                  errors.email &&
+                    React.createElement(
+                      "div",
+                      { className: "form-error" },
+                      errors.email
+                    )
+                ),
+                React.createElement(
+                  "div",
+                  { className: "col-md-6" },
+                  React.createElement(
+                    "label",
+                    { className: "form-label" },
+                    "Phone"
+                  ),
+                  React.createElement("input", {
+                    className:
+                      "form-control " + (errors.phone ? "is-invalid" : ""),
+                    value: form.phone,
+                    onChange: (e) =>
+                      setForm({ ...form, phone: e.target.value }),
+                  }),
+                  errors.phone &&
+                    React.createElement(
+                      "div",
+                      { className: "form-error" },
+                      errors.phone
+                    )
+                ),
+                React.createElement(
+                  "div",
+                  { className: "col-12" },
+                  React.createElement(
+                    "label",
+                    { className: "form-label" },
+                    "Disease"
+                  ),
+                  React.createElement("input", {
+                    className:
+                      "form-control " +
+                      (errors.disease ? "is-invalid" : ""),
+                    value: form.disease,
+                    onChange: (e) =>
+                      setForm({ ...form, disease: e.target.value }),
+                  }),
+                  errors.disease &&
+                    React.createElement(
+                      "div",
+                      { className: "form-error" },
+                      errors.disease
+                    )
+                )
+              ),
+              React.createElement(
+                "div",
+                { className: "mt-3 d-flex gap-2" },
+                React.createElement(
+                  "button",
+                  { type: "submit", className: "btn btn-primary" },
+                  editingId ? "Update Patient" : "Add Patient"
+                ),
+                React.createElement(
+                  "button",
+                  {
+                    type: "button",
+                    className: "btn btn-outline-secondary",
+                    onClick: resetForm,
+                  },
+                  "Reset"
+                )
+              )
+            ),
+            React.createElement(
+              "div",
+              { className: "row" },
+              React.createElement(
+                "div",
+                { className: "col-md-6" },
+                React.createElement("h6", null, "Patients"),
+                React.createElement(
+                  "div",
+                  { className: "list-group" },
+                  patients.length === 0 &&
+                    React.createElement(
+                      "div",
+                      { className: "small-muted" },
+                      "No patients yet"
+                    ),
+                  patients.map((p) =>
+                    React.createElement(
+                      "div",
+                      {
+                        key: p.id,
+                        className:
+                          "list-group-item d-flex justify-content-between align-items-start",
+                      },
+                      React.createElement(
+                        "div",
+                        {
+                          style: { cursor: "pointer" },
+                          onClick: () => openPatientProfile(p),
+                        },
+                        React.createElement(
+                          "div",
+                          { className: "fw-bold" },
+                          p.name,
+                          " ",
+                          React.createElement(
+                            "span",
+                            { className: "small-muted" },
+                            `(${p.years}y ${p.months}m)`
+                          )
+                        ),
+                        React.createElement(
+                          "div",
+                          { className: "small-muted" },
+                          `${p.email} • ${p.phone}`
+                        ),
+                        React.createElement(
+                          "div",
+                          { className: "mt-1" },
+                          React.createElement(
+                            "span",
+                            { className: "badge-disease" },
+                            p.disease
+                          )
+                        )
+                      ),
+                      React.createElement(
+                        "div",
+                        { className: "btn-group modifyBtn" },
+                        React.createElement(
+                          "button",
+                          {
+                            className: "btn btn-sm btn-outline-primary",
+                            onClick: () => openBookModal(p),
+                          },
+                          "Book"
+                        ),
+                        React.createElement(
+                          "button",
+                          {
+                            className: "btn btn-sm btn-outline-secondary",
+                            onClick: () => handleEdit(p),
+                          },
+                          "Edit"
+                        ),
+                        React.createElement(
+                          "button",
+                          {
+                            className: "btn btn-sm btn-outline-danger",
+                            onClick: () => handleDelete(p),
+                          },
+                          "Delete"
+                        )
+                      )
+                    )
+                  )
+                )
+              ),
+              React.createElement(
+                "div",
+                { className: "col-md-6" },
+                React.createElement("h6", null, "Appointments"),
+                React.createElement(
+                  "div",
+                  { className: "small-muted mb-2" },
+                  "Click to reschedule or cancel"
+                ),
+                React.createElement(
+                  "div",
+                  { className: "list-group" },
+                  appointments.length === 0 &&
+                    React.createElement(
+                      "div",
+                      { className: "small-muted" },
+                      "No appointments"
+                    ),
+                  appointments.map((a) =>
+                    React.createElement(
+                      "div",
+                      {
+                        key: a.id,
+                        className:
+                          "list-group-item d-flex justify-content-between align-items-center",
+                      },
+                      React.createElement(
+                        "div",
+                        null,
+                        React.createElement(
+                          "div",
+                          {
+                            className: "fw-bold",
+                            style: { cursor: "pointer" },
+                            onClick: () => openPatientProfile(
+                              patients.find(
+                                (p) =>
+                                  String(p.id) ===
+                                  String(a.patientId)
+                              ) || { name: a.patientName }
+                            ),
+                          },
+                          a.patientName
+                        ),
+                        React.createElement(
+                          "div",
+                          { className: "small-muted" },
+                          `${a.datetime} • `,
+                          React.createElement(
+                            "span",
+                            {
+                              className:
+                                "status-chip " +
+                                statusClass(a.status),
+                            },
+                            a.status
+                          )
+                        ),
+                        a.doctorName
+                          ? React.createElement(
+                              "div",
+                              {
+                                className: "small-muted",
+                                style: { cursor: "pointer" },
+                                onClick: () =>
+                                  openDoctorProfileFromAppt(a),
+                              },
+                              `Doctor: ${a.doctorName}`
+                            )
+                          : React.createElement(
+                              "div",
+                              {
+                                className:
+                                  "badge bg-warning text-dark",
+                                style: { cursor: "pointer" },
+                                onClick: () => assignDoctorInline(a),
+                              },
+                              "Doctor not assigned"
+                            )
+                      ),
+                      React.createElement(
+                        "div",
+                        { className: "btn-group modifyBtn" },
+                        React.createElement(
+                          "button",
+                          {
+                            className:
+                              "btn btn-sm btn-outline-warning",
+                            onClick: () =>
+                              rescheduleAppointment(a),
+                          },
+                          "Reschedule"
+                        ),
+                        React.createElement(
+                          "button",
+                          {
+                            className:
+                              "btn btn-sm btn-outline-danger",
+                            onClick: () => cancelAppointment(a),
+                          },
+                          "Cancel"
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          );
+        }
+
+        // ---------- DOCTOR PAGE ----------
+        function DoctorPage({ onDoctorsChange }) {
+          const [doctors, setDoctors] = useState([]);
+          const [loading, setLoading] = useState(false);
+          const [editingId, setEditingId] = useState(null);
+          const [form, setForm] = useState({
+            name: "",
+            years: "",
+            months: "",
+            email: "",
+            phone: "",
+            specialization: "",
+          });
+          const [errors, setErrors] = useState({});
+
+          useEffect(() => {
+            loadDoctors();
+          }, []);
+
+          async function loadDoctors() {
+            setLoading(true);
+            try {
+              const list = await api.listDoctors();
+              setDoctors(list || []);
+              onDoctorsChange(list || []);
+            } catch (err) {
+              Swal.fire({
+                icon: "error",
+                title: "Load error",
+                text: String(err),
+              });
+            } finally {
+              setLoading(false);
+            }
+          }
+
+          function resetForm() {
+            setForm({
+              name: "",
+              years: "",
+              months: "",
+              email: "",
+              phone: "",
+              specialization: "",
+            });
+            setEditingId(null);
+            setErrors({});
+          }
+
+          async function handleSave(e) {
+            e.preventDefault();
+            const vals = { ...form };
+            const errs = validateDoctor(vals);
+            if (Object.keys(errs).length) {
+              setErrors(errs);
+              return;
+            }
+            setLoading(true);
+            try {
+              if (editingId) {
+                const updated = await api.updateDoctor(editingId, vals);
+                setDoctors((prev) =>
+                  prev.map((d) => (d.id === updated.id ? updated : d))
+                );
+                onDoctorsChange(
+                  doctors.map((d) =>
+                    d.id === updated.id ? updated : d
+                  )
+                );
+                Swal.fire({
+                  icon: "success",
+                  title: "Doctor updated",
+                  timer: 1200,
+                  showConfirmButton: false,
+                });
+              } else {
+                const created = await api.createDoctor(vals);
+                setDoctors((prev) => [created, ...prev]);
+                onDoctorsChange([created, ...doctors]);
+                Swal.fire({
+                  icon: "success",
+                  title: "Doctor added",
+                  timer: 1200,
+                  showConfirmButton: false,
+                });
+              }
+              resetForm();
+            } catch (err) {
+              let msg = String(err.message || err);
+              try {
+                const parsed = JSON.parse(msg);
+                if (typeof parsed === "object")
+                  msg = Object.values(parsed).join("; ");
+              } catch (e) {}
+              Swal.fire({ icon: "error", title: "Error", text: msg });
+            } finally {
+              setLoading(false);
+            }
+          }
+
+          function handleEdit(d) {
+            setEditingId(d.id);
+            setForm({
+              name: d.name,
+              years: d.years,
+              months: d.months,
+              email: d.email,
+              phone: d.phone,
+              specialization: d.specialization,
+            });
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }
+
+          async function handleDelete(d) {
+            const res = await Swal.fire({
+              title: "Delete doctor?",
+              text: `This will remove doctor ${d.name}.`,
+              icon: "warning",
+              showCancelButton: true,
+              confirmButtonText: "Yes, delete",
+            });
+            if (res.isConfirmed) {
+              try {
+                await api.deleteDoctor(d.id);
+                setDoctors((prev) => prev.filter((x) => x.id !== d.id));
+                onDoctorsChange(doctors.filter((x) => x.id !== d.id));
+                Swal.fire({
+                  icon: "success",
+                  title: "Deleted",
+                  timer: 1200,
+                  showConfirmButton: false,
+                });
+              } catch (err) {
+                Swal.fire({
+                  icon: "error",
+                  title: "Error",
+                  text: String(err),
+                });
+              }
+            }
+          }
+
+          function openDoctorProfile(d) {
+            openProfileModal({
+              type: "doctor",
+              person: d,
+              appointments: [],
+            });
+          }
+
+          return React.createElement(
+            "div",
+            {
+              className:
+                "card p-4 animate__animated animate__fadeIn position-relative",
+            },
+            loading &&
+              React.createElement(
+                "div",
+                { className: "loading-overlay" },
+                React.createElement("div", {
+                  className: "spinner-border text-success",
+                  role: "status",
+                })
+              ),
+            React.createElement(
+              "h5",
+              { className: "mb-3" },
+              "Doctor Management"
+            ),
+            React.createElement(
+              "form",
+              { onSubmit: handleSave, className: "mb-4" },
+              React.createElement(
+                "div",
+                { className: "row g-2" },
+                React.createElement(
+                  "div",
+                  { className: "col-md-6" },
+                  React.createElement(
+                    "label",
+                    { className: "form-label" },
+                    "Name"
+                  ),
+                  React.createElement("input", {
+                    className:
+                      "form-control " + (errors.name ? "is-invalid" : ""),
+                    value: form.name,
+                    onChange: (e) =>
+                      setForm({ ...form, name: e.target.value }),
+                  }),
+                  errors.name &&
+                    React.createElement(
+                      "div",
+                      { className: "form-error" },
+                      errors.name
+                    )
+                ),
+                React.createElement(
+                  "div",
+                  { className: "col-md-3" },
+                  React.createElement(
+                    "label",
+                    { className: "form-label" },
+                    "Years Exp."
+                  ),
+                  React.createElement("input", {
+                    type: "number",
+                    min: 0,
+                    className:
+                      "form-control " + (errors.years ? "is-invalid" : ""),
+                    value: form.years,
+                    onChange: (e) =>
+                      setForm({ ...form, years: e.target.value }),
+                  }),
+                  errors.years &&
+                    React.createElement(
+                      "div",
+                      { className: "form-error" },
+                      errors.years
+                    )
+                ),
+                React.createElement(
+                  "div",
+                  { className: "col-md-3" },
+                  React.createElement(
+                    "label",
+                    { className: "form-label" },
+                    "Months"
+                  ),
+                  React.createElement("input", {
+                    type: "number",
+                    min: 0,
+                    max: 11,
+                    className:
+                      "form-control " + (errors.months ? "is-invalid" : ""),
+                    value: form.months,
+                    onChange: (e) =>
+                      setForm({ ...form, months: e.target.value }),
+                  }),
+                  errors.months &&
+                    React.createElement(
+                      "div",
+                      { className: "form-error" },
+                      errors.months
+                    )
+                ),
+                React.createElement(
+                  "div",
+                  { className: "col-md-6" },
+                  React.createElement(
+                    "label",
+                    { className: "form-label" },
+                    "Email"
+                  ),
+                  React.createElement("input", {
+                    className:
+                      "form-control " + (errors.email ? "is-invalid" : ""),
+                    value: form.email,
+                    onChange: (e) =>
+                      setForm({ ...form, email: e.target.value }),
+                  }),
+                  errors.email &&
+                    React.createElement(
+                      "div",
+                      { className: "form-error" },
+                      errors.email
+                    )
+                ),
+                React.createElement(
+                  "div",
+                  { className: "col-md-6" },
+                  React.createElement(
+                    "label",
+                    { className: "form-label" },
+                    "Phone"
+                  ),
+                  React.createElement("input", {
+                    className:
+                      "form-control " + (errors.phone ? "is-invalid" : ""),
+                    value: form.phone,
+                    onChange: (e) =>
+                      setForm({ ...form, phone: e.target.value }),
+                  }),
+                  errors.phone &&
+                    React.createElement(
+                      "div",
+                      { className: "form-error" },
+                      errors.phone
+                    )
+                ),
+                React.createElement(
+                  "div",
+                  { className: "col-12" },
+                  React.createElement(
+                    "label",
+                    { className: "form-label" },
+                    "Specialization"
+                  ),
+                  React.createElement("input", {
+                    className:
+                      "form-control " +
+                      (errors.specialization ? "is-invalid" : ""),
+                    value: form.specialization,
+                    onChange: (e) =>
+                      setForm({
+                        ...form,
+                        specialization: e.target.value,
+                      }),
+                  }),
+                  errors.specialization &&
+                    React.createElement(
+                      "div",
+                      { className: "form-error" },
+                      errors.specialization
+                    )
+                )
+              ),
+              React.createElement(
+                "div",
+                { className: "mt-3 d-flex gap-2" },
+                React.createElement(
+                  "button",
+                  { type: "submit", className: "btn btn-success" },
+                  editingId ? "Update Doctor" : "Add Doctor"
+                ),
+                React.createElement(
+                  "button",
+                  {
+                    type: "button",
+                    className: "btn btn-outline-secondary",
+                    onClick: resetForm,
+                  },
+                  "Reset"
+                )
+              )
+            ),
+            React.createElement(
+              "div",
+              { className: "mt-3" },
+              React.createElement("h6", null, "Doctors"),
+              React.createElement(
+                "div",
+                { className: "list-group" },
+                doctors.length === 0 &&
+                  React.createElement(
+                    "div",
+                    { className: "small-muted" },
+                    "No doctors yet"
+                  ),
+                doctors.map((d) =>
+                  React.createElement(
+                    "div",
+                    {
+                      key: d.id,
+                      className:
+                        "list-group-item d-flex justify-content-between align-items-start",
+                    },
+                    React.createElement(
+                      "div",
+                      {
+                        style: { cursor: "pointer" },
+                        onClick: () => openDoctorProfile(d),
+                      },
+                      React.createElement(
+                        "div",
+                        { className: "fw-bold" },
+                        d.name
+                      ),
+                      React.createElement(
+                        "div",
+                        { className: "small-muted" },
+                        `${d.email} • ${d.phone}`
+                      ),
+                      React.createElement(
+                        "div",
+                        { className: "mt-1" },
+                        React.createElement(
+                          "span",
+                          { className: "badge bg-light text-success" },
+                          d.specialization || "General"
+                        )
+                      )
+                    ),
+                    React.createElement(
+                      "div",
+                      { className: "btn-group modifyBtn" },
+                      React.createElement(
+                        "button",
+                        {
+                          className: "btn btn-sm btn-outline-secondary",
+                          onClick: () => handleEdit(d),
+                        },
+                        "Edit"
+                      ),
+                      React.createElement(
+                        "button",
+                        {
+                          className: "btn btn-sm btn-outline-danger",
+                          onClick: () => handleDelete(d),
+                        },
+                        "Delete"
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          );
+        }
+
+        // ---------- SIMPLE TIMELINE COMPONENT ----------
+        function TimelineView({ appointments }) {
+          const sorted = [...appointments].sort((a, b) =>
+            String(a.datetime).localeCompare(String(b.datetime))
+          );
+
+          function statusClass(status) {
+            if (status === "Completed") return "status-completed";
+            if (status === "Cancelled") return "status-cancelled";
+            return "status-booked";
+          }
+
+          return React.createElement(
+            "div",
+            { className: "card p-4" },
+            React.createElement("h5", { className: "mb-3" }, "Appointment Timeline"),
+            sorted.length === 0 &&
+              React.createElement(
+                "div",
+                { className: "small-muted" },
+                "No appointments"
+              ),
+            React.createElement(
+              "div",
+              { className: "timeline" },
+              sorted.map((a) => {
+                const d = new Date(a.datetime);
+                const dateStr = isNaN(d.getTime())
+                  ? a.datetime
+                  : d.toLocaleString();
+                return React.createElement(
+                  "div",
+                  { key: a.id, className: "timeline-item" },
+                  React.createElement(
+                    "div",
+                    { className: "timeline-time" },
+                    dateStr
+                  ),
+                  React.createElement(
+                    "div",
+                    { className: "timeline-title" },
+                    `${a.patientName} with ${
+                      a.doctorName || "Unassigned doctor"
+                    }`
+                  ),
+                  React.createElement(
+                    "div",
+                    { className: "timeline-meta" },
+                    React.createElement(
+                      "span",
+                      {
+                        className: "status-chip " + statusClass(a.status),
+                      },
+                      a.status
+                    )
+                  )
+                );
+              })
+            )
+          );
+        }
+
+        // ---------- PLACEHOLDER CHATBOT & DOCTOR PANEL ----------
+        function ChatbotCard({ patients, doctors, appointments }) {
+  const [messages, setMessages] = useState([
+    { role: 'assistant', content: 'Hello! I\'m your Hospital Assistant. Ask me about patients, doctors, appointments, or anything hospital-related.' }
+  ]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const messagesEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!input.trim() || loading) return;
+    
+    const userMessage = { role: 'user', content: input };
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setLoading(true);
+
+    try {
+      const response = await api.askChat({ question: input, context: { patients, doctors, appointments } });
+      setMessages(prev => [...prev, { role: 'assistant', content: response.answer }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.' }]);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
-  })();
-  </script>
-</body>
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  return React.createElement('div', { className: 'card h-100 p-3 animate__animated animate__fadeInRight' },
+    React.createElement('h6', { className: 'mb-3 d-flex align-items-center' },
+      React.createElement('i', { className: 'bi bi-robot me-2 text-primary' }),
+      'Hospital Assistant'
+    ),
+    React.createElement('div', { 
+      className: 'chat-container border rounded p-3 mb-3', 
+      style: { height: '400px', overflowY: 'auto', backgroundColor: '#f8f9fa' }
+    },
+      messages.map((msg, idx) => 
+        React.createElement('div', { key: idx, className: `mb-2 ${msg.role === 'user' ? 'text-end' : ''}` },
+          React.createElement('div', { 
+            className: `p-2 rounded-3 ${msg.role === 'user' ? 'bg-primary text-white ms-4' : 'bg-white shadow-sm border me-4'}`,
+            style: { maxWidth: '80%', display: 'inline-block' }
+          }, msg.content)
+        )
+      ),
+      loading && React.createElement('div', { className: 'text-center text-muted small mb-2' },
+        React.createElement('div', { className: 'spinner-border spinner-border-sm me-2', role: 'status' }),
+        'Assistant is typing...'
+      ),
+      React.createElement('div', { ref: messagesEndRef })
+    ),
+    React.createElement('div', { className: 'input-group' },
+      React.createElement('input', {
+        type: 'text',
+        className: 'form-control',
+        placeholder: 'Ask about patients, appointments, doctors... (Ctrl+Enter to send)',
+        value: input,
+        onChange: (e) => setInput(e.target.value),
+        onKeyPress: handleKeyPress,
+        disabled: loading
+      }),
+      React.createElement('button', {
+        className: 'btn btn-primary',
+        type: 'button',
+        onClick: handleSend,
+        disabled: loading || !input.trim()
+      },
+        loading ? React.createElement('div', { className: 'spinner-border spinner-border-sm', role: 'status' }) : 'Send'
+      )
+    )
+  );
+}
+
+
+        function DoctorPanel({ doctors }) {
+  const [notifications, setNotifications] = React.useState([]);
+  const [input, setInput] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+
+  // Example: Load some dummy notifications or fetch from your backend
+  React.useEffect(() => {
+    // Simulate async fetch notifications
+    const fetchNotifications = () => {
+      // Placeholder example notifications
+      setNotifications([
+        { id: 1, text: 'Meeting at 3 PM with cardiology team.' },
+        { id: 2, text: 'New patient assignments available.' },
+      ]);
+    };
+    fetchNotifications();
+  }, []);
+
+  const addNotification = () => {
+    if (!input.trim()) return;
+    setLoading(true);
+    setTimeout(() => {
+      setNotifications((prev) => [
+        ...prev,
+        { id: prev.length + 1, text: input.trim() },
+      ]);
+      setInput('');
+      setLoading(false);
+    }, 500); // Simulate async save delay
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      addNotification();
+    }
+  };
+
+  return React.createElement(
+    'div',
+    { className: 'card h-100 p-3 animate__animated animate__fadeInRight' },
+    React.createElement(
+      'h6',
+      { className: 'mb-3 d-flex align-items-center' },
+      React.createElement('i', { className: 'bi bi-bell-fill me-2 text-success' }),
+      'Doctor Panel'
+    ),
+    React.createElement(
+      'div',
+      {
+        className: 'notifications-container mb-3',
+        style: { maxHeight: '320px', overflowY: 'auto', backgroundColor: '#e9f7ef', padding: '10px', borderRadius: '6px' }
+      },
+      notifications.length === 0
+        ? React.createElement('div', { className: 'text-muted small' }, 'No notifications.')
+        : notifications.map((note) =>
+            React.createElement(
+              'div',
+              {
+                key: note.id,
+                className: 'notification-item mb-2 p-2 bg-white rounded shadow-sm',
+              },
+              note.text
+            )
+          )
+    ),
+    React.createElement(
+      'div',
+      { className: 'input-group' },
+      React.createElement('input', {
+        type: 'text',
+        className: 'form-control',
+        placeholder: 'Add notification or message',
+        value: input,
+        onChange: (e) => setInput(e.target.value),
+        onKeyPress: handleKeyPress,
+        disabled: loading,
+      }),
+      React.createElement(
+        'button',
+        {
+          className: 'btn btn-success',
+          type: 'button',
+          onClick: addNotification,
+          disabled: loading || !input.trim(),
+        },
+        loading
+          ? React.createElement('div', { className: 'spinner-border spinner-border-sm', role: 'status' })
+          : 'Add'
+      )
+    )
+  );
+}
+
+
+        // ---------- ROOT APP ----------
+        function App() {
+          const [mainTab, setMainTab] = useState("dashboard");
+          const [subTab, setSubTab] = useState("patients");
+          const [globalAppointments, setGlobalAppointments] = useState([]);
+          const [globalDoctors, setGlobalDoctors] = useState([]);
+
+          return React.createElement(
+            "div",
+            { className: "row g-3" },
+            React.createElement(
+              "div",
+              { className: "col-12 mb-2" },
+              React.createElement(
+                "ul",
+                { className: "nav nav-pills mb-2" },
+                React.createElement(
+                  "li",
+                  { className: "nav-item" },
+                  React.createElement(
+                    "button",
+                    {
+                      className:
+                        "nav-link " +
+                        (mainTab === "dashboard" ? "active" : ""),
+                      onClick: () => setMainTab("dashboard"),
+                    },
+                    React.createElement("i", {
+                      className: "bi bi-speedometer2 me-1",
+                    }),
+                    "Dashboard"
+                  )
+                ),
+                React.createElement(
+                  "li",
+                  { className: "nav-item" },
+                  React.createElement(
+                    "button",
+                    {
+                      className:
+                        "nav-link " +
+                        (mainTab === "manage" ? "active" : ""),
+                      onClick: () => setMainTab("manage"),
+                    },
+                    React.createElement("i", {
+                      className: "bi bi-people me-1",
+                    }),
+                    "Manage"
+                  )
+                ),
+                React.createElement(
+                  "li",
+                  { className: "nav-item" },
+                  React.createElement(
+                    "button",
+                    {
+                      className:
+                        "nav-link " +
+                        (mainTab === "timeline" ? "active" : ""),
+                      onClick: () => setMainTab("timeline"),
+                    },
+                    React.createElement("i", {
+                      className: "bi bi-clock-history me-1",
+                    }),
+                    "Timeline"
+                  )
+                )
+              )
+            ),
+            mainTab === "dashboard" &&
+              React.createElement(
+                "div",
+                { className: "col-12" },
+                React.createElement(Dashboard, {
+                  patients: [],
+                  doctors: globalDoctors,
+                  appointments: globalAppointments,
+                })
+              ),
+            mainTab === "timeline" &&
+              React.createElement(
+                "div",
+                { className: "col-12" },
+                React.createElement(TimelineView, {
+                  appointments: globalAppointments,
+                })
+              ),
+            mainTab === "manage" &&
+              React.createElement(
+                React.Fragment,
+                null,
+                React.createElement(
+                  "div",
+                  { className: "col-12 mb-2" },
+                  React.createElement(
+                    "div",
+                    {
+                      className:
+                        "d-flex align-items-center justify-content-between",
+                    },
+                    React.createElement(
+                      "div",
+                      null,
+                      React.createElement(
+                        "h4",
+                        { className: "mb-0" },
+                        "Hospital Assistant"
+                      ),
+                    ),
+                    React.createElement(
+                      "div",
+                      null,
+                      React.createElement(
+                        "div",
+                        { className: "btn-group", role: "group" },
+                        React.createElement(
+                          "button",
+                          {
+                            className:
+                              "btn btn-outline-primary " +
+                              (subTab === "patients" ? "active" : ""),
+                            onClick: () => setSubTab("patients"),
+                          },
+                          "Patient"
+                        ),
+                        React.createElement(
+                          "button",
+                          {
+                            className:
+                              "btn btn-outline-primary " +
+                              (subTab === "doctors" ? "active" : ""),
+                            onClick: () => setSubTab("doctors"),
+                          },
+                          "Doctor"
+                        )
+                      )
+                    )
+                  )
+                ),
+                React.createElement(
+                  "div",
+                  {
+                    className:
+                      subTab === "patients" ? "col-lg-9" : "col-lg-6",
+                  },
+                  subTab === "patients"
+                    ? React.createElement(PatientPage, {
+                        doctors: globalDoctors,
+                        onAppointmentsChange: setGlobalAppointments,
+                        globalAppointments,
+                      })
+                    : React.createElement(DoctorPage, {
+                        onDoctorsChange: setGlobalDoctors,
+                      })
+                ),
+                React.createElement(
+                  "div",
+                  {
+                    className:
+                      subTab === "patients"
+                        ? "col-lg-3 right-column"
+                        : "col-lg-6 right-column",
+                  },
+                  // Replace the ChatbotCard call in App component:
+subTab === 'patients' ? React.createElement(ChatbotCard, { 
+  patients: [], // Add global patients state
+  doctors: globalDoctors, 
+  appointments: globalAppointments 
+}) : React.createElement(DoctorPanel)
+
+                )
+              )
+          );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById("root"));
+        root.render(React.createElement(App));
+      })();
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
 </html>
